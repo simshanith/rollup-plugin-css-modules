@@ -89,6 +89,16 @@ export default {
 
 Vite doesn't pass import attributes to plugins yet, so this plugin doesn't transform CSS modules in Vite.
 
+### Server-side rendering
+
+The transformed modules create a `CSSStyleSheet`, which Node doesn't have, so they throw `CSSStyleSheet is not defined` on a server. When you render with [Lit SSR](https://lit.dev/docs/ssr/overview/), load `@lit-labs/ssr-dom-shim/register-css-hook.js` before anything imports Lit or a CSS module. It defines a `CSSStyleSheet` that `@lit-labs/ssr` renders into the declarative shadow root:
+
+```sh
+node --import @lit-labs/ssr-dom-shim/register-css-hook.js server.js
+```
+
+Lit's full DOM shim (`@lit-labs/ssr/lib/install-global-dom-shim.js`) also defines `CSSStyleSheet`, but `@lit-labs/ssr` 4.1.0 renders these sheets as an empty `<style>` with it. [lit/lit#5400](https://github.com/lit/lit/pull/5400) fixes that in the next release.
+
 ## Options
 
 ### `bundledSheet`
