@@ -1,6 +1,15 @@
 import type {Plugin, PluginImpl} from 'rollup';
 import {basename} from 'path';
 
+/**
+ * The third argument of Rolldown's (and Vite's) `transform` hook. Rolldown
+ * only fills in `attributes` with `experimental.importAttributes`.
+ */
+interface TransformMeta {
+  rawId?: string;
+  attributes?: Record<string, string>;
+}
+
 export interface CssModulesOptions {
   /**
    * When set, CSS files will be bundled into a single CSS file with
@@ -142,15 +151,25 @@ export const cssModules: PluginImpl<CssModulesOptions> = (
       return null;
     },
 
-    transform(code, id) {
-      const isCssModule = this.getModuleInfo(id)?.attributes.type === 'css';
-      if (!isCssModule) {
+    // Rolldown and Vite pass a third `meta` argument. Rollup doesn't.
+    transform(code, id, meta?: TransformMeta) {
+      // Rolldown has no `attributes` on ModuleInfo, and Vite's dev server
+      // throws when a plugin reads them, so only read them in Rollup.
+      const isRolldown = 'rolldownVersion' in this.meta;
+      const type = isRolldown
+        ? meta?.attributes?.['type']
+        : this.getModuleInfo(id)?.attributes.type;
+      if (type !== 'css') {
         return null;
       }
+      // Rolldown appends the import attributes to the id.
+      const fileName = meta?.rawId ?? id;
+      // Rolldown would otherwise treat the result as CSS.
+      const moduleType = isRolldown ? {moduleType: 'js'} : {};
 
       if (bundledSheetConfig) {
         // Store the CSS for bundling
-        const sheetName = basename(id);
+        const sheetName = basename(fileName);
         cssModuleSources.set(sheetName, code);
 
         // Escape the sheet name for use in JS string literal
@@ -166,6 +185,7 @@ export default stylesheet;
 `,
           // Mark the bundled CSS as an external dependency that will be resolved later
           moduleSideEffects: false,
+          ...moduleType,
         };
       }
 
@@ -178,11 +198,14 @@ export default stylesheet;
         .replace(/`/g, '\\`')
         // Escape ${} interpolation:
         .replace(/\$/g, '\\$');
-      return `
+      return {
+        code: `
 const stylesheet = new CSSStyleSheet();
 stylesheet.replaceSync(\`${escapedCode}\`);
 export default stylesheet;
-`;
+`,
+        ...moduleType,
+      };
     },
 
     generateBundle(_outputOptions, bundle) {
@@ -221,10 +244,11 @@ export default stylesheet;
       // Update references in the JavaScript bundles to point to the actual CSS file
       for (const [_key, chunk] of Object.entries(bundle)) {
         if (chunk.type === 'chunk' && chunk.code) {
-          // Replace the virtual bundled CSS import with the actual file
+          // Replace the virtual bundled CSS import with the actual file.
+          // Rollup prints the \0 in the id as is, Rolldown as an escape.
           chunk.code = chunk.code.replace(
             new RegExp(
-              `from\\s*['"]\\u0000bundled-css['"]\\s*with\\s*\\{\\s*type:\\s*['"]css['"]\\s*\\}`,
+              `from\\s*['"](?:\\u0000|\\\\0|\\\\u0000)bundled-css['"]\\s*with\\s*\\{\\s*type:\\s*['"]css['"]\\s*\\}`,
               'g'
             ),
             `from './${bundledFileName}' with { type: 'css' }`
@@ -232,7 +256,7 @@ export default stylesheet;
           // Also handle assert syntax for older browsers
           chunk.code = chunk.code.replace(
             new RegExp(
-              `from\\s*['"]\\u0000bundled-css['"]\\s*assert\\s*\\{\\s*type:\\s*['"]css['"]\\s*\\}`,
+              `from\\s*['"](?:\\u0000|\\\\0|\\\\u0000)bundled-css['"]\\s*assert\\s*\\{\\s*type:\\s*['"]css['"]\\s*\\}`,
               'g'
             ),
             `from './${bundledFileName}' assert { type: 'css' }`

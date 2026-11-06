@@ -67,6 +67,28 @@ export default {
 
 The `cssModules()` plugin factory takes no options as of now. It may accepts options in the future.
 
+### Rolldown
+
+The plugin also works with [Rolldown](https://rolldown.rs) 1.3 and later. Rolldown only passes import attributes to plugins with its [`experimental.importAttributes`](https://rolldown.rs/in-depth/import-attributes) option, so turn it on:
+
+`rolldown.config.js`:
+
+```js
+import {cssModules} from 'rollup-plugin-css-modules';
+
+export default {
+  input: 'index.js',
+  experimental: {importAttributes: true},
+  plugins: [cssModules()],
+  output: {
+    file: 'bundle.js',
+    format: 'es',
+  },
+};
+```
+
+Vite doesn't pass import attributes to plugins yet, so this plugin doesn't transform CSS modules in Vite.
+
 ## Options
 
 ### `bundledSheet`
