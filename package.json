@@ -75,6 +75,7 @@
     "build:browser-tests": {
       "command": "rollup -c rollup-browser-tests.config.js",
       "dependencies": [
+        "build",
         "build:browser-tests:ts",
         "build:browser-tests:copy"
       ],
@@ -86,7 +87,7 @@
       ]
     },
     "build:browser-tests:copy": {
-      "command": "cp src/test/browser/*.css test/browser/",
+      "command": "mkdir -p test/browser && cp src/test/browser/*.css test/browser/",
       "files": [
         "src/test/browser/*.css"
       ],
@@ -114,7 +115,7 @@
       ]
     },
     "test:build": {
-      "command": "node --test-reporter spec test/build/*_test.js",
+      "command": "node --test --test-reporter spec test/build/*_test.js",
       "dependencies": [
         "build"
       ],

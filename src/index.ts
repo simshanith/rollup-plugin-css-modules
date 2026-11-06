@@ -72,7 +72,7 @@ export const getBundledSheet = (sheet, name) => {
   for (const rule of sheet.cssRules) {
     if (rule instanceof CSSSupportsRule) {
       // Match sheet("name") or sheet(name) - browsers normalize quotes in conditionText
-      const match = /sheet\(["']?(.+?)["']?\)/.exec(rule.conditionText);
+      const match = /sheet\\(["']?(.+?)["']?\\)/.exec(rule.conditionText);
       if (match?.[1] === name) {
         for (const bundledRule of rule.cssRules) {
           bundledSheet.insertRule(bundledRule.cssText);
@@ -173,7 +173,7 @@ export default stylesheet;
       // Escape the CSS source so that it can be used in a template literal.
       const escapedCode = code
         // Preserve any escape sequences in the source:
-        .replace('\\', '\\\\')
+        .replace(/\\/g, '\\\\')
         // Escape backticks:
         .replace(/`/g, '\\`')
         // Escape ${} interpolation:

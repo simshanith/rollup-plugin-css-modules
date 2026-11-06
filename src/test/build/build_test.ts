@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 
-import {cssModules} from '../../index.js';
+import {cssModules, getBundledSheetSource} from '../../index.js';
 import {rollup, type Plugin} from 'rollup';
 import virtualMod, {type RollupVirtualOptions} from '@rollup/plugin-virtual';
 
@@ -37,7 +37,7 @@ test('Transforms CSS files imported with the correct attribute', async () => {
 });
 
 test('Fails on CSS files imported without attributes', async () => {
-  assert.rejects(async () => {
+  await assert.rejects(async () => {
     await rollup({
       input: 'index.js',
       plugins: [
@@ -89,7 +89,34 @@ test('Leaves type attribute on external imports', async () => {
   assert(output[0].code.includes(`{ type: 'css' }`));
 });
 
+test('Preserves all escape sequences in the CSS', async () => {
+  const bundle = await rollup({
+    input: 'index.js',
+    plugins: [
+      cssModules(),
+      virtual({
+        'index.js': `
+          import styles from './styles.css' with {type: 'css'};
+          console.log(styles);
+        `,
+        'styles.css': `.foo::before { content: "\\2014 \\2014"; }`,
+      }),
+    ],
+  });
+  const {output} = await bundle.generate({format: 'es'});
+  assert(output[0].code.includes(String.raw`content: "\\2014 \\2014"`));
+});
+
 // Tests for bundledSheet option
+
+test('bundledSheet: getBundledSheet matches sheet names', async () => {
+  // The helper is emitted from a template literal, so check that its regex
+  // kept its escapes.
+  const regex = /\/sheet.*?\/(?=\.exec)/.exec(getBundledSheetSource)?.[0];
+  assert(regex, getBundledSheetSource);
+  const match = new Function(`return ${regex}`)().exec('sheet("a.css")');
+  assert.equal(match?.[1], 'a.css');
+});
 
 test('bundledSheet: bundles CSS files into a single CSS file with @supports wrappers', async () => {
   const bundle = await rollup({
